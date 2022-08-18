@@ -1,0 +1,17 @@
+<<<--->>> Malo o programu za treniranje modela <<<--->>>
+
+Pri odabiru aplikacija potrebno je voditi racuna o broju paketa koji su pronadjeni. Predvidjeni minimum paketa za treniranje je 10, a maksimalno se uzima 1000 paketa. Ove vrijednosti je moguce promijeniti u fajlu utils.py (min_data_nb i max_data_nb). Aplikacije sa malim brojem paketa najvjerovatnije nece dobro trenirati model, pa je preporucljivo odabrati aplikacije sa sto vecim brojem paketa kako bi se postigli bolji rezultati. Pregledom liste za izbor aplikacija u tabeli moze se steci uvid o broju paketa po aplikaciji.
+
+Programom je predvidjeno da minimalni broj aplikacija za treniranje bude 5 (broj se moze promijeniti u fajlu train.py, u funciji odabrane_app). Aplikacije ispod definisanog minimuma broja paketa neće biti uzete u obzir.
+
+Predvidjeno je da se modeli treniraju sa maksimalno 20 epoha po modelu (broj epoha može promijeniti unutar koda programa train.py, u promjenljivoj nb_epochs). Koristi se EarlyStopping metoda koja omogucava da se proces treniranja prekine, ukoliko tokom nekoliko epoha trening ne da bolje rezultate. 
+
+U fajlu utils.py, u funkcijama cnn_model, mlp_model i sae_model mogu se promijeniti parametri slojeva modela. U fajlu train.py mogu se promijeniti parametri za kompajlovanje modela (optimizer, loss, metrics itd).
+
+DNS i Three-way Handshake saobracaj (SYN, ACK, FIN) u paketima ne sadrze payload i nece biti uzeti u obzir tokom treniranja.
+
+NFstream koristi nDPI modul sto je jedna od Deep Packet Inspection metoda. Moglo bi da dodje do odredjene slicnosti istih aplikacija sa razlicitim protokolima, pogotovo kod enkriptovanog saobracaja, poput, recimo, 'QUIC.Google' i 'TLS.Google', ili razlicitih servisa aplikacija kao što su 'MS_OneDrive', 'Microsoft', 'Microsoft365' ili 'Google', 'GoogleDocs', 'GoogleServices' i 'GMail'. Ukratko, model dobro prepoznaje slicne strukture paketa, dok DPI metoda prepoznaje servis aplikacije.
+
+Aplikacije sa imenima 'HTTP', 'TLS', 'QUIC', 'UDP', 'Unknown' i uopstenim imenima protokola sadrze generalizovani saobracaj te vrste protokola, i takav obicno nije odgovarajuci za treniranje, jer bi mogao da bude u konfliktu sa aplikacijama poput 'TLS.Google', 'HTTP.Microsoft' itd. Ovaj sadrzaj nece biti na listi aplikacija za izbor tokom treniranja (apps_blacklist u utils.py).
+
+Program je treniran i testiran sa pcap fajlovima velicine do 200MB.

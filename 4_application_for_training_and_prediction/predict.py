@@ -34,7 +34,7 @@ from Utilities.utils import *
 
 clean_t()
 
-# Glavni thread worker, ovdje se obavlja glavni dio programa
+# Main thread worker, this is where most of the program is done
 class MainThread(QThread):
     finished = pyqtSignal()
     def __init__(self, filepath, label, tabela, grafikon, grafikonCanvas):
@@ -48,33 +48,33 @@ class MainThread(QThread):
 
     def run(self):
 
-        self.statusLabel.setText("Kreiranje praznih foldera.")
+        self.statusLabel.setText("Creating empty folders.")
         create_folder(folders)
         sleep(1)
 
-        self.statusLabel.setText("Brisanje sadrzaja foldera.")
+        self.statusLabel.setText("Deleting content of the folders.")
         clean_folder(folders)
         sleep(1)
 
-        # NFStream prepoznavanje i predobrada .pcap fajlova
+        # NFStream recognition and preprocessing of .pcap files
         ndpi_prepro(self)
 
-        # predikcija
-        self.statusLabel.setText("Priprema paketa za predikciju...")
+        # Prediction
+        self.statusLabel.setText("Preparing packets for prediction...")
         sleep(1)
         x_test, y_test = load_data(self, 'prediction')
 
-        # Provjera u slučaju da nema paketa za predikciju
+        # Checking if there are no packets for prediction
         if x_test == None or y_test == None:
-            self.statusLabel.setText("Nema dovoljno paketa za predikciju. Odaberite drugi .pcap fajl")
+            self.statusLabel.setText("There is not enough packets for prediction. Choose another .pcap file")
             self.statusLabel.setStyleSheet('color: rgb(255, 0, 0);')
             finished = pyqtSignal()
         else:
-            # formatiranje nizova u skladu sa dimenzijama zahtjevanog prostora, i formatiranje tipa varijable (za numpy)
+            # formating arrays in according to dimensions of required space, and formating of variable type (for numpy)
             x_cnn_test = np.expand_dims(x_test, axis=2).astype(np.float32)
             x_mlp_sae_test =  np.array(x_test).astype(np.float32)
 
-            # sortirana lista klasa
+            # sorted list of classes
             lista=[]
             [lista.append(x) for x in self.dict_name2label.values() if x not in lista]
             lista.sort()
@@ -83,55 +83,55 @@ class MainThread(QThread):
             for value in self.dict_name2label.values():  
                 all_labels.append(value)
 
-            # one-hot-encoding imena aplikacija
+            # one-hot-encoding of application names
             encoder = LabelEncoder()
             encoder.fit(all_labels)
             class_labels = encoder.classes_
 
-            # broj klasa u modelima
+            # number of classes in models
             nb_classes = len(class_labels)
 
-            # broj testiranih uzoraka
+            # number of tested samples
             test_count = [y_test.count(i) for i in range(len(class_labels)) ]
 
             encoded_y_test = encoder.transform(y_test)
             y_test = np_utils.to_categorical(encoded_y_test, num_classes = nb_classes)
 
-            in_classes = [item for item in range(0, nb_classes)] # lista indeksa labela
+            in_classes = [item for item in range(0, nb_classes)] # lista of label indices
 
-            self.statusLabel.setText("Ucitavanje CNN modela...")
+            self.statusLabel.setText("Loading CNN model...")
             cnn_model = load_model('./models/cnn_model.h5')
             print("CNN model.")
             cnn_model.summary()
 
-            self.statusLabel.setText("Ucitavanje SAE modela...")
+            self.statusLabel.setText("Loading SAE model...")
             sae_model = load_model('./models/sae_model.h5')
             print("SAE model.")
             sae_model.summary()
 
-            self.statusLabel.setText("Ucitavanje MLP modela...")
+            self.statusLabel.setText("Loading MLP model...")
             mlp_model = load_model('./models/mlp_model.h5')
             print("MLP model.")
             mlp_model.summary()
 
-            self.statusLabel.setText("Racunanje performansi modela...")
+            self.statusLabel.setText("Calculating models performances...")
 
             cnn_preds = cnn_model.predict(x_cnn_test, batch_size=32,  verbose=0)
             sae_preds = sae_model.predict(x_mlp_sae_test, batch_size=32,  verbose=0)
             mlp_preds = mlp_model.predict(x_mlp_sae_test, batch_size=32,  verbose=0)
 
-            # pravi uzorci
+            # true sample labels
             y_true_labels = [np.argmax(t) for t in y_test]
 
-            # predicted samples
+            # predicted sample labels
             y_cnn_preds_labels = [np.argmax(t) for t in cnn_preds]
             y_sae_preds_labels = [np.argmax(t) for t in sae_preds]
             y_mlp_preds_labels = [np.argmax(t) for t in mlp_preds]
 
-            # broj testiranih uzoraka
+            # number of tested samples
             test_count = [y_true_labels.count(i) for i in range(len(class_labels)) ]
 
-            # kreiranje formule za broja uzoraka po indeksima
+            # creating formula for number of samples per indices
             cnn_count = [ 0 for _ in range(len(class_labels)) ]
             sae_count = [ 0 for _ in range(len(class_labels)) ]
             mlp_count = [ 0 for _ in range(len(class_labels)) ]
@@ -148,7 +148,7 @@ class MainThread(QThread):
                 if i == j:
                     mlp_count[i] = mlp_count[i] + 1
 
-            # normalizacija vrijednosti, lakši način za dobijanje grafikona u procentima
+            # normalisation of values, easier way to plot chart in percents
             test_normal = [ 0 for _ in range(len(class_labels)) ]
             cnn_normal = [ 0 for _ in range(len(class_labels)) ]
             sae_normal = [ 0 for _ in range(len(class_labels)) ]
@@ -172,19 +172,19 @@ class MainThread(QThread):
             # Kreiranje tabele
             self.tabela.setColumnCount(5)
             self.tabela.setRowCount(len(lista))
-            self.tabela.setHorizontalHeaderLabels(["Aplikacija", "CNN", "MLP", "SAE", "Ukupno"])
+            self.tabela.setHorizontalHeaderLabels(["Aplication", "CNN", "MLP", "SAE", "Total"])
             self.tabela.resizeColumnsToContents()
             self.tabela.resizeRowsToContents()
 
             # Pretty tabela
-            a = PrettyTable(["", "Aplikacije", "CNN", "MLP", "SAE", "Ukupno"])
+            a = PrettyTable(["", "Aplication", "CNN", "MLP", "SAE", "Total"])
             # Poravnanje u tabeli
             a.align[""] = "r"
-            a.align["Aplikacije"] = "l"
+            a.align["Aplication"] = "l"
             a.align["CNN"] = "r"
             a.align["MLP"] = "r"
             a.align["SAE"] = "r"
-            a.align["Ukupno"] = "r"
+            a.align["Total"] = "r"
             a.padding_width = 1
 
             for i, item in enumerate(class_labels):
@@ -212,7 +212,7 @@ class MainThread(QThread):
 
             print(a)
 
-            # Crtanje grafikona
+            # Ploting chart
             self.figure.clear()
 
             ax = self.figure.add_subplot(111)
@@ -221,7 +221,7 @@ class MainThread(QThread):
             barHeight = 0.25
             barWidth = 0.25
 
-            # Postavljanje pozicije barova grafikona na X osi
+            # Setting position of Bars on x axis
             br1 = np.arange(len(class_labels))
             br2 = [y + barHeight for y in br1]
             br3 = [y + barHeight for y in br2]
@@ -234,22 +234,22 @@ class MainThread(QThread):
             ax.barh(br3, mlp_normal, color ='y', height = barHeight,
                     edgecolor ='grey', label ='MLP')
             ax.barh(br4, test_normal, color ='b', height = barHeight,
-                    edgecolor ='grey', label ='Broj uzoraka')
+                    edgecolor ='grey', label ='No of samples')
              
-            # Uklanjanje sploljnih ivica grafikona
+            # Removing outside edges of the chart
             for s in ['top', 'bottom', 'left', 'right']:
                 ax.spines[s].set_visible(False)
               
-            # Dodavanje prostora između osa i labela
+            # Adding space between axis and labels
             ax.xaxis.set_tick_params(pad = 5, labelsize = 8)
             ax.yaxis.set_tick_params(pad = 10, labelsize = 8)
              
-            # Dodavanje ivica x i y ose
+            # Adding edge of x i y axis
             ax.grid(visible = True, color ='grey',
                     linestyle ='-.', linewidth = 0.5,
                     alpha = 0.2)
              
-            # Prikazivanje vrijednosti na vrhu
+            # Showing values on the top
             ax.invert_yaxis()
              
             ax.set_ylabel('Aplikacija', fontweight ='bold', fontsize = 10)
@@ -266,7 +266,7 @@ class MainThread(QThread):
 
             self.finished.emit()
 
-# Korisnički interfejs sa odabir fajla
+# User interface for file selection
 class UI(QMainWindow):
     def __init__(self):
         super(UI, self).__init__()
@@ -281,12 +281,12 @@ class UI(QMainWindow):
         self.ucitavanje = self.findChild(QPushButton, "ucitavanjeButton")
         self.pokretanje = self.findChild(QPushButton, "pokretanjeButton")
         self.pokretanje.setDisabled(True)
-        self.statusLabel.setText("Potrebno je odabrati fajl, pa pokrenuti predikciju...")
+        self.statusLabel.setText("You have to choose the file, and then start the prediction...")
         
-        # Definisanje tebele
+        # Defining the table
         self.tabela = self.findChild(QTableWidget, "tabelaWidget")
 
-        # Definisanje okruženja za grafikon
+        # Defining of the interface for a chart
         self.layout = self.findChild(QVBoxLayout, "grafikonLayout")
         self.figure = plt.figure(figsize = (5, 25))
         self.figure.subplots_adjust(left=0.407,right=0.970,
@@ -296,29 +296,29 @@ class UI(QMainWindow):
         self.layout.addWidget(NavigationToolbar(self.canvas, self))
         self.layout.addWidget(self.canvas)
 
-        # Definisanje akcija dugmadi 
+        # Defining of button's actions 
         self.ucitavanje.clicked.connect(self.otvaranje)
         self.pokretanje.clicked.connect(self.predikcija)
         
-        # Prikazivanje aplikacije
+        # Showing application
         self.show()
 
 
-    # Otvaranje dijaloga za odabir .pcap fajla 
+    # Opening dialog for .pcap file selection 
     def otvaranje(self):
         clean_t()
         self.statusLabel.setStyleSheet('')
 
-        # Dijalog za otvaranje fajla
+        # Dialog for file opening
         fname, _ = QFileDialog.getOpenFileName(self, "Open File", "", "PCAP files (*.pcap)")
 
-        # Prikazivanje imena fajla i omogućavanje sledećeg dugmeta
+        # Showing file name and enabling next button
         if fname:
             self.putanjaLabel.setText(str(fname))
             self.pokretanje.setDisabled(False)
 
 
-    # Funkcija koja poziva thread za predikciju mrežnog saobraćaja       
+    # Function which calls prediction worker thread       
     def predikcija(self):
         clean_t()
         self.worker = MainThread(self.putanjaLabel.text(), self.statusLabel, self.tabela, self.figure, self.canvas)
@@ -327,17 +327,17 @@ class UI(QMainWindow):
         self.worker.start()
 
 
-# Inicijalizacija aplikacije
+# Application identification
 app = QApplication(sys.argv)
 UIWindow = UI()
 
 
-# Otvaranje qss fajla
+# qss file opening
 styleFile = open("./Utilities/Integrid.qss",'r')
 with styleFile:
     qss = styleFile.read()
     app.setStyleSheet(qss)
 
 
-# Pokretanje aplikacije
+# Executing application
 app.exec()

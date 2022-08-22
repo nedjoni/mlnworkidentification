@@ -41,7 +41,6 @@ python apps_list.py
 
 List of application needs to be stored for further use and file **utils.py** is used for that.
 
-<<<<<<< HEAD
 Preprocessing labeled pcap files to pickle files makes preprocessed data to be loaded later. This scripts is borrowed from similar work on [deeppacket](https://github.com/KimythAnly/deeppacket)
 ```bash
 python prepro.py

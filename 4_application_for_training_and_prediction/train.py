@@ -27,19 +27,19 @@ warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
 clean_t()
 
 
-# QObject klasa za strimovanje ouputa terminala u QTextEdit
+# QObject class for output streaming from terminal in QTextEdit
 class Stream(QObject):
     newText = pyqtSignal(str)
 
     def write(self, text):
         self.newText.emit(str(text))
 
-    # flush funkcija za sys.stdout
+    # flush funkction for sys.stdout
     def flush(self):
         pass
 
 
-# Thread klasa za proceduru predobrade odabranog fajla
+# Thread class for preprocessing procedure of the chosen file
 class PreprocessingThread(QThread):
     finished = pyqtSignal()
     def __init__(self, filepath, label, dict_name2label):
@@ -49,17 +49,17 @@ class PreprocessingThread(QThread):
         self.dict_name2label = dict_name2label
 
     def run(self):
-        # NFStream priprema draft liste za aplikacije
+        # NFStream preparing of drafti list for applications
         ndpi_dict(self)
 
-        # NFStream prepoznavanje i predobrada .pcap fajlova
+        # NFStream recognition and preprocessing of .pcap files
         ndpi_prepro(self)
 
         print(self.dict_name2label)
         self.finished.emit()
 
 
-# Thread klasa za kreiranje liste aplikacija za klasifikaciju
+# Thread class for creating of classification list for applications
 class LabelingThread(QThread):
     finished = pyqtSignal()
     def __init__(self, filepath, statusLabel, dict_name2label, counts):
@@ -70,22 +70,22 @@ class LabelingThread(QThread):
         self.counts = counts
 
     def run(self):
-        # Konacno filterisanje i kreiranje liste aplikacija za klasifikaciju
-        ## Bice odabrane samo one aplikacije koje su prosle preprocessing
-        ## i imaju minimalno definisani broj paketa
-        self.statusLabel.setText("Konačno filterisanje aplikacija za klasifikaciju")
+        # Final filtering and creating of application list for classification
+        ## Applications will be chosen only if they finished preprocessing process
+        ## and have minimum of defined packages
+        self.statusLabel.setText("Final filtering of application for classification")
         sleep(1)
 
         applications, packets = count_data(self)
 
         for i, app in enumerate(applications):
             self.counts[app] = packets[i]
-        self.statusLabel.setText("Brojanje paketa za pronadjene aplikacije je zavrseno.")
+        self.statusLabel.setText("Counting packets for detected applications is finished.")
         
         self.finished.emit()
 
 
-# Thread klasa za treniranje modela
+# Thread class for model training
 class TrainingThread(QThread):
     finished = pyqtSignal()
     def __init__(self, filepath, statusLabel, dict_name2label):
@@ -95,24 +95,24 @@ class TrainingThread(QThread):
         self.dict_name2label = dict_name2label
 
     def run(self):
-        # Odavde počinje proces treniranja
-        ## Podaci će u procesu treniranja biti prilagođeni različitim modelima
+        # From here on begins process of training
+        ## Data will be adapted for different models
 
-        # učitavanje podataka
+        # data loading
         x_train, y_train, x_val, y_val = load_data(self, 'training')
 
-        # formatiranje nizova u skladu sa dimenzijama zahtjevanog prostora, i formatiranje tipa varijable (za numpy)
+        # formating arrays in according to dimensions of required space, and formating of variable type (for numpy)
         x_cnn = np.expand_dims(x_train, axis=2).astype(np.float32)
         x_val_cnn = np.expand_dims(x_val, axis=2).astype(np.float32)
         x_mlp_sae = np.array(x_train).astype(np.float32)
         x_val_mlp_sae = np.array(x_val).astype(np.float32)
 
-        # one-hot-encoding imena aplikacija
+        # one-hot-encoding of application names
         encoder = LabelEncoder()
         encoder.fit(y_train)
         class_labels = encoder.classes_
 
-        # broj klasa u modelima
+        # number of classes in models
         self.nb_classes = len(class_labels)
 
         encoded_y_train = encoder.transform(y_train)
@@ -120,7 +120,7 @@ class TrainingThread(QThread):
         encoded_y_val = encoder.transform(y_val)
         y_val = np_utils.to_categorical(encoded_y_val)
 
-        # Definisanje i treniranje model masinskog ucenja
+        # Defining and training of machine learning models
         batch_size = 32
         nb_epochs = 20
 
@@ -135,72 +135,71 @@ class TrainingThread(QThread):
             )
             return model
 
-        # EarlyStopping je postavljen kako bi se eliminisalo nepotrebno vrijeme dugog treniranja
+        # EarlyStopping is added to eliminate unecessary long timed training
         es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=5)
         def ModelCheck(saved_model_file):
             checkpoint = ModelCheckpoint(saved_model_file, monitor='val_loss', save_best_only=True, verbose=1)
             return checkpoint
 
-        ## prvo se trenira CNN model
-        print("Treniranje CNN modela...\n")
-        self.statusLabel.setText("Treniranje CNN modela...")
+        ## firstly, CNN model is trained
+        print("Training of CNN model...\n")
+        self.statusLabel.setText("Training of CNN model...")
 
         model = compiled_model(cnn_model(self))
 
-        # lokacija za čuvanje CNN modela
+        # location for saving CNN model
         saved_model_file = 'models/cnn_model.h5'.format('conv1d-cnn')
 
         # Keeping model in control points where function loss improves
-        # Čuvanje modela u tačkama gdje se funkcija gubitaka poboljšava
         fit_history = model.fit(x_cnn, y_train, epochs=nb_epochs, batch_size=batch_size, validation_data=(x_val_cnn,y_val), callbacks=[ModelCheck(saved_model_file), es], verbose=2)
 
-        print("Treniranje CNN modela je zavrseno.\n")
-        self.statusLabel.setText("Treniranje CNN modela je zavrseno.")
+        print("Training of CNN model is finished.\n")
+        self.statusLabel.setText("Training of CNN model is finished.")
         sleep(2)
 
-        ## sledece se trenira MLP model
-        print("Treniranje MLP modela...")
-        self.statusLabel.setText("Treniranje MLP modela...")
+        ## next comes training of MLP model
+        print("Training of MLP model...")
+        self.statusLabel.setText("Training of MLP model...")
 
         model = compiled_model(mlp_model(self))
 
-        # lokacija za čuvanje MLP modela
+        # location for saving MLP model
         saved_model_file = 'models/mlp_model.h5'.format('mlp')
 
-        # Čuvanje modela u tačkama gdje se funkcija gubitaka poboljšava
+        # Keeping model in control points where function loss improves
         fit_history = model.fit(x_mlp_sae, y_train, epochs=nb_epochs, batch_size=batch_size, validation_data=(x_val_mlp_sae,y_val), callbacks=[ModelCheck(saved_model_file), es], verbose=2)
 
-        print("Treniranje MLP modela je zavrseno.\n")
-        self.statusLabel.setText("Treniranje MLP modela je zavrseno.")
+        print("Training of MLP model is finished.\n")
+        self.statusLabel.setText("Training of MLP model is finished.")
         sleep(2)
 
-        ## poslednji se trenira SAE model
-        print("Treniranje SAE modela...")
-        self.statusLabel.setText("Treniranje SAE modela...")
+        ## SAE model is trained last
+        print("Training of SAE model...")
+        self.statusLabel.setText("Training of SAE model...")
 
         model = compiled_model(sae_model(self))
 
-        # lokacija za čuvanje SAE modela
+        # location for saving SAE model
         saved_model_file = 'models/sae_model.h5'.format('sae')
 
-        # Čuvanje modela u tačkama gdje se funkcija gubitaka poboljšava
+        # Keeping model in control points where function loss improves
         fit_history = model.fit(x_mlp_sae, y_train, epochs=nb_epochs, batch_size=batch_size, validation_data=(x_val_mlp_sae,y_val), callbacks=[ModelCheck(saved_model_file), es], verbose=2)
 
-        print("Treniranje SAE modela je zavrseno.\n")
-        self.statusLabel.setText("Treniranje SAE modela je zavrseno.")
+        print("Training of SAE model is finished.\n")
+        self.statusLabel.setText("Training of SAE model is finished.")
         sleep(2)
-        print("Modeli su spremni za predikciju.\n")
+        print("Models are ready for prediction.\n")
 
-        self.statusLabel.setText("Treniranje modela je zavrseno.")
+        self.statusLabel.setText("Training of SAE model is finished.")
         self.statusLabel.setStyleSheet('color: rgb(170, 255, 0);')
     
 
-# Korisnički interfejs sa odabir fajla
+# User interface for file selection
 class UI(QMainWindow):
     def __init__(self):
         super(UI, self).__init__()
 
-        # Učitavanje ui fajla
+        # Loading of ui file
         uic.loadUi("./Utilities/train_dialog.ui", self)
 
         # Define Widgets
@@ -217,57 +216,57 @@ class UI(QMainWindow):
         self.treniraj.setDisabled(True)
         self.statusLabel.setText("Potrebno je odabrati fajl, pa pokrenuti prepoznavanje aplikacija...")
         
-        # Definisanje akcija dugmadi
+        # Define button's actions
         self.ucitavanje.clicked.connect(self.otvaranje)
         self.labelizacija.clicked.connect(self.preprocessing)
         self.treniraj.clicked.connect(self.odabrane_app)
         self.selektuj.clicked.connect(self.all_app)
         self.deselektuj.clicked.connect(self.none_app)
 
-        # Definisanje okruženja aplikacije
+        # Defining of application's layout
         self.aplikacijeLayout = self.findChild(QVBoxLayout, "aplikacijeLayout")
         self.listA = None
 
-        # Definisanje okruženja za ispis teksta sesije za treniranje
+        # Defining of layout for text output during training session
         self.treningText = self.findChild(QTextEdit, "textEdit")
         text=open('Utilities/Uputstvo.txt').read()
         self.treningText.setPlainText(text)
 
-        # Definisanje varijabli
+        # Define vasriables
         self.dict_name2label = dict()
         self.counts = dict()
         self.checked_items = [] # lista za cekirane aplikacije      
 
-        # Tekst sa terminala
+        # Text from terminal
         sys.stdout = Stream(newText=self.onUpdateText)  
         
-        # Prikazivanje aplikacije
+        # Showing applications
         self.show()
 
 
-    # Otvaranje dijaloga za odabir .pcap fajla 
+    # Opening dialog for .pcap file selection 
     def otvaranje(self):
         clean_t()
-        # Dijalog za otvaranje fajla
+        # Dialog for file opening
         fname, _ = QFileDialog.getOpenFileName(self, "Open File", "", "PCAP files (*.pcap)")
 
-        # Prikazivanje imena fajla i omogućavanje sledećeg dugmeta
+        # Showing file name and enabling next button
         if fname:
-            # Skrivanje dugmadi za kontrolu aplikacija
+            # Hidding buttons for application control
             self.selektuj.setDisabled(True)
             self.deselektuj.setDisabled(True)
             self.treniraj.setDisabled(True)
-            # Ispis putanje i aktivacija sledećeg dugmeta
+            # Writing out path of the file and enabling next button
             self.putanjaLabel.setText(str(fname))
             self.labelizacija.setDisabled(False)
 
 
-    # Predobrada fajlova
+    # File preprocessing
     def preprocessing(self):
         self.treningText.clear()
         clean_t()
 
-        # Dugmad koja treba ugasiti
+        # Buttons that needs to be disabled
         self.labelizacija.setDisabled(True)
 
         self.filepath = self.putanjaLabel.text()
@@ -279,22 +278,22 @@ class UI(QMainWindow):
         self.worker.start()
         
 
-    # Funkcija koja kreira interfejs za odabir aplikacija za treniranje
+    # Function that creates interface for aplication selection which will be used for training
     def odabir(self):
         self.treningText.clear()
         self.filter_liste()
 
         self.statusLabel.setStyleSheet('')
 
-        # Otkrivanje dugmadi za kontrolu aplikacija
+        # Enabling buttons for application control
         self.selektuj.setDisabled(False)
         self.deselektuj.setDisabled(False)
         self.treniraj.setDisabled(False)
 
-        self.statusLabel.setText("Prikazuju se pronađene aplikacije...")
+        self.statusLabel.setText("Discovered applications are shown...")
         sleep(2)
 
-        # QTreeWidget je fleksibilan za kreiranje liste aplikacija sa cekboksovima
+        # QTreeWidget is flexibile way to create list of applications with checkboxes
         if not self.listA:
             self.listA = QTreeWidget()
             self.aplikacijeLayout.addWidget(self.listA)
@@ -302,11 +301,11 @@ class UI(QMainWindow):
             self.listA.setHeaderLabels(['Indeks','Aplikacija','Broj paketa'])
             self.listA.resizeColumnToContents(0)
 
-        # Brisanje moguceg prethodnog sadrzaja QTreeWidget-a
+        # Purging possible previos content of QTreeWidget
         self.listA.clear()
 
         for key, val in self.counts.items():
-            print("{} : {} paketa".format(key, val))
+            print("{} : {} pakets".format(key, val))
             item = QTreeWidgetItem()
             item.setCheckState(0, Qt.CheckState.Unchecked)
             item.setData(1, Qt.ItemDataRole.UserRole, id(item))
@@ -315,13 +314,13 @@ class UI(QMainWindow):
             self.listA.addTopLevelItem(item)
 
         if len(self.counts) == 0:
-            self.statusLabel.setText("Aplikacije u .pcap fajlu nemaju dovoljno paketa za treniranje. Odaberite drugi .pcap fajl.")
+            self.statusLabel.setText("Applications in .pcap file don't have enough packets for training. Select different .pcap file.")
             self.statusLabel.setStyleSheet('color: rgb(255, 0, 0);')
         else:
-            self.statusLabel.setText("Odaberite aplikacije koje ce se koristiti za klasifikaciju i pokrenite trening modela")
+            self.statusLabel.setText("Select applications that will be used for classification and then start model training")
 
 
-    # Odabira sve ponudjene aplikacije
+    # Selects all shown applications
     def all_app(self):
         def recurse(parent_item):
             for i in range(parent_item.childCount()):
@@ -331,7 +330,7 @@ class UI(QMainWindow):
         recurse(self.listA.invisibleRootItem())
 
 
-    # Uklanja sve ponudjene aplikacije iz odabira
+    # Deselects all chosen applications from selection
     def none_app(self):
         def recurse(parent_item):
             for i in range(parent_item.childCount()):
@@ -341,9 +340,9 @@ class UI(QMainWindow):
         recurse(self.listA.invisibleRootItem())
 
 
-    # Funkcija koja provjerava koje su aplikacije odabrane, i kreira konacnu listu aplikacija za treniranje
+    # Function that checks which applications are selected, and creates final list of application for training
     def odabrane_app(self):
-        # resetovanje potrebnih listi i interfejsa
+        # reseting necessary lists and interfaces
         self.statusLabel.setStyleSheet('')
         self.checked_items = []
         self.dict_name2label = {}
@@ -362,16 +361,16 @@ class UI(QMainWindow):
             self.dict_name2label[app + '.pcap'] = app
 
         if len(self.checked_items) > 4:
-            # Skrivanje dugmadi, u daljem procesu nisu vise potrebna
+            # Disabling buttons, buttons are no longer necessary for further process
             self.ucitavanje.setDisabled(True)
             self.selektuj.setDisabled(True)
             self.deselektuj.setDisabled(True)
             self.treniraj.setDisabled(True)
 
-            # Redraw liste aplikacija QTreeWidget-a
+            # Redraw of application list in QTreeWidget-a
             self.listA.clear()
             self.listA.setColumnCount(2)
-            self.listA.setHeaderLabels(['Indeks','Aplikacija','Broj paketa'])
+            self.listA.setHeaderLabels(['Index','Application','Number of packets'])
             for i, app in enumerate(self.checked_items):
                 item = QTreeWidgetItem()
                 item.setData(0, Qt.ItemDataRole.UserRole, id(item))
@@ -382,27 +381,27 @@ class UI(QMainWindow):
             self.listA.resizeColumnToContents(0)
 
             # Sledeći korak je treniranje modela
-            self.statusLabel.setText("Treniranje modela...")
+            self.statusLabel.setText("Training model...")
             self.trening()
 
         elif len(self.checked_items) == 0:
-            self.statusLabel.setText("Nije odabrana nijedna aplikacija za treniranje")
+            self.statusLabel.setText("There are no select applications for training")
             self.statusLabel.setStyleSheet('color: rgb(255, 0, 0);')
 
         elif len(self.checked_items) <= 5:
-            self.statusLabel.setText("Nije dabran dovoljan broj aplikacija za treniranje (Minimum je 5)")
+            self.statusLabel.setText("There is not enough applications for training (Minimum is 5)")
             self.statusLabel.setStyleSheet('color: rgb(255, 0, 0);')
             self.none_app()
 
-        print('Odabrano je', len(self.checked_items), 'aplikacija.')
+        print(len(self.checked_items), 'of applications is selected.')
         print('checked_items: ',self.checked_items)
 
 
-    # Funkcija koja poziva thread za trening modela
+    # Function that calls thread for model training
     def trening(self):
 
-        # Konacna dict_name2label lista
-        self.statusLabel.setText("Upis liste aplikacija u fajl za dalju upotrebu")
+        # Final dict_name2label list
+        self.statusLabel.setText("Writing of application list for further use")
         with open('Utilities/apps.py','w') as data:
             data.write('# for app identification\n') 
             data.write('## created from file: {}\n'.format(self.filepath))
@@ -420,7 +419,7 @@ class UI(QMainWindow):
         self.worker.start()
 
 
-    # Funkcija koja poziva thread za filterisanje liste aplikacija
+    # Function that cals thread for applicatiuon list filtering
     def filter_liste(self):
         self.treningText.clear()
         self.worker = LabelingThread(self.filepath, self.statusLabel, self.dict_name2label, self.counts)
@@ -429,20 +428,20 @@ class UI(QMainWindow):
         self.worker.start()
 
 
-    # Resetuje elemente grafickog prikaza na osnovne vrijednosti
+    # Resets elements of graphic interface to starting values
     def reset_ui(self):
-        # Brisanje sadržaja
+        # Purging content
         self.listA.clear()
 
-        # Otkrivanje dugmadi
+        # Enabling buttons
         self.ucitavanje.setDisabled(False)
-        # Skrivanje dugmadi
+        # Disabling buttons
         self.selektuj.setDisabled(True)
         self.deselektuj.setDisabled(True)
         self.treniraj.setDisabled(True)
 
     
-    # Za proceduru unosa teksta u QTextEdit
+    # For text input procedure to QTextEdit
     def onUpdateText(self, text):
         """Write console output to text widget."""
         cursor = self.treningText.textCursor()
@@ -452,22 +451,22 @@ class UI(QMainWindow):
         self.treningText.ensureCursorVisible()
 
 
-    # Destructor metoda za sys.stdout
+    # Destructor method for sys.stdout
     def __del__(self):
         sys.stdout = sys.__stdout__
 
 
-# Inicijalizacija aplikacije
+# Initialisation of application
 app = QApplication(sys.argv)
 UIWindow = UI()
 
 
-# otvaranje qss fajla
+# Opening qss file
 styleFile = open("./Utilities/Integrid.qss",'r')
 with styleFile:
     qss = styleFile.read()
     app.setStyleSheet(qss)
 
 
-# Pokretanje aplikacije
+# Application execution
 app.exec()

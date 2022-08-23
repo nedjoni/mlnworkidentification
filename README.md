@@ -4,8 +4,8 @@ This work is based on ideas of various researches, mostly on [Deep Packet: A Nov
 
 ## Installation
 
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install foobar.
-Scripts are tested under Windows, by using [Anaconda](https://www.anaconda.com/), and also tested as working under Linux.
+Use the package manager [pip](https://pip.pypa.io/en/stable/) to install necessary modules and libraries.
+Scripts are tested under Windows, by using of [Anaconda](https://www.anaconda.com/), and also tested to work under Linux.
 All necessary modules and libraries are listed in file requirements.txt, and can be installed using command:
 ```bash
 pip install -r requirements.txt

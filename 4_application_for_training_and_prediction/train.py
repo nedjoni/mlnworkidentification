@@ -229,7 +229,7 @@ class UI(QMainWindow):
 
         # Defining of layout for text output during training session
         self.treningText = self.findChild(QTextEdit, "textEdit")
-        text=open('Utilities/Uputstvo.txt').read()
+        text=open('Utilities/Guide.txt').read()
         self.treningText.setPlainText(text)
 
         # Define vasriables
